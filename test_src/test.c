@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include "test.h"
 
@@ -13,6 +14,11 @@
 
 int main(int argc, char **argv) {
   int upng_test_res, lodepng_test_res;
+  int log_count = 0;
+  char log_file[10];
+  int chr;
+  FILE* log;
+  FILE* input;
   if(DEBUG)puts("DEBUG: running main");
   if(argc < 2){
         fprintf(stderr, "Usage: %s <png>\n", argv[0]);
@@ -27,7 +33,23 @@ int main(int argc, char **argv) {
   
   if(DEBUG)puts("DEBUG: executing lodepng decoder");
   lodepng_test_res = lodepng_decoder_test(argv[1]);
-
+  
+  /* Differential fuzzing*/
+  if((upng_test_res == UPNG_EOK) != (lodepng_test_res == 0)){
+    if(DEBUG)puts("DEBUG: program outputs differ");
+    //sprintf(log_file, "poc_%d", log_count);
+    log = fopen("poc", "w");
+    input = fopen(argv[1], "r");
+    if(log && input){
+      while((chr = fgetc(input)) != EOF){
+        fputc(chr, log);
+      }
+      fclose(log);
+      fclose(input);
+    }
+  } else {
+    if(DEBUG)puts("DEBUG: program outputs match");
+  }
   if(DEBUG)printf("\nDEBUG: back in main. lodepng decoder result: %i\n", lodepng_test_res);
   if(!DEBUG)printf("INFO: decoding has been completed. upng returned %i and lodepng returned %i.\n", upng_test_res, lodepng_test_res);
   return 0;
