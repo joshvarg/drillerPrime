@@ -4,7 +4,7 @@
 #include "test.h"
 
 #include "upng.h"
-#include "lodepng/lodepng.h"
+#include "lodepng.h"
 
 #include "upng_decoder_test.h"
 #include "lodepng_decoder_test.h"
