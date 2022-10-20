@@ -15,10 +15,12 @@
 int main(int argc, char **argv) {
   int upng_test_res, lodepng_test_res;
   int log_count = 0;
-  char log_file[10];
+  char* log_file = "log.txt";
+  char* latest_poc = "poc";
   int chr;
-  FILE* log;
+  FILE* poc;
   FILE* input;
+  FILE* log;
   if(DEBUG)puts("DEBUG: running main");
   if(argc < 2){
         fprintf(stderr, "Usage: %s <png>\n", argv[0]);
@@ -34,21 +36,28 @@ int main(int argc, char **argv) {
   if(DEBUG)puts("DEBUG: executing lodepng decoder");
   lodepng_test_res = lodepng_decoder_test(argv[1]);
   
+  log = fopen(log_file, "a");
   /* Differential fuzzing*/
-  if((upng_test_res == UPNG_EOK) != (lodepng_test_res == 0)){
+  if((upng_test_res == UPNG_EOK) != (lodepng_test_res == 0) && strcmp(argv[1], latest_poc)){
     if(DEBUG)puts("DEBUG: program outputs differ");
-    //sprintf(log_file, "poc_%d", log_count);
-    log = fopen("poc", "w");
+    
+    poc = fopen(latest_poc, "w");
     input = fopen(argv[1], "r");
-    if(log && input){
+    if(poc && input){
       while((chr = fgetc(input)) != EOF){
-        fputc(chr, log);
+        fputc(chr, poc);
       }
-      fclose(log);
+      fclose(poc);
       fclose(input);
+    }
+    if(log){
+      fprintf(log, "u:%d lode:%d\n", upng_test_res, lodepng_test_res);
     }
   } else {
     if(DEBUG)puts("DEBUG: program outputs match");
+  }
+  if(log){
+    fclose(log);
   }
   if(DEBUG)printf("\nDEBUG: back in main. lodepng decoder result: %i\n", lodepng_test_res);
   if(!DEBUG)printf("INFO: decoding has been completed. upng returned %i and lodepng returned %i.\n", upng_test_res, lodepng_test_res);
