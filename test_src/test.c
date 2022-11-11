@@ -61,6 +61,7 @@ int main(int argc, char **argv) {
   }
   if(DEBUG)printf("\nDEBUG: back in main. lodepng decoder result: %i\n", lodepng_test_res);
   if(!DEBUG)printf("INFO: decoding has been completed. upng returned %i and lodepng returned %i.\n", upng_test_res, lodepng_test_res);
+  assert(upng_test_res == 0 && lodepng_test_res == 0 || upng_test_res != 0 && lodepng_test_res != 0);
   return 0;
 }
 
