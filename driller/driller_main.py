@@ -9,6 +9,7 @@ import binascii
 
 import angr
 import tracer
+import claripy
 from . import config
 
 
@@ -20,13 +21,17 @@ class Driller(object):
     Driller object, symbolically follows an input looking for new state transitions.
     """
 
-    def __init__(self, binary, input_str, fuzz_bitmap=None, tag=None, redis=None, hooks=None, argv=None):
+    def __init__(self, binary, input_str, fuzz_bitmap=None, tag=None, redis=None, hooks=None, file_name = None, input_growth=None, depth_limit=None, heuristic=None, argv=None):
         """
         :param binary     : The binary to be traced.
         :param input_str  : Input string to feed to the binary.
         :param fuzz_bitmap: AFL's bitmap of state transitions (defaults to empty).
         :param redis      : redis.Redis instance for coordinating multiple Driller instances.
         :param hooks      : Dictionary of addresses to simprocedures.
+        :param file_name  : Name of the file to use as input to the binary
+        :param input_growth:The number of bytes to increase the input every iteration (i,e,: 4), defaults to 0.
+        :param depth_limit: The depth limit for input drilling, defaults to 1 (Driller's default depth exploration).  
+        :param heuristic  : The heuristic type to employ (i.e. :'abort')
         :param argv       : Optionally specify argv params (i,e,: ['./calc', 'parm1']),
                             defaults to binary name with no params.
         """
@@ -51,6 +56,18 @@ class Driller(object):
 
         # Start time, set by drill method.
         self.start_time = time.time()
+
+        # Set the name of the file input
+        self.file_name = file_name
+
+        # Input growth specifier.
+        self.input_growth = input_growth or 0
+
+        # Set depth limit for input drilling
+        self.depth_limit = depth_limit or 1
+        
+        # Set heuristic for symbolic execution
+        self.heuristic = heuristic if not heuristic else heuristic.lower()
 
         # Set of all the generated inputs.
         self._generated = set()
@@ -100,6 +117,14 @@ class Driller(object):
 
         for i in self._drill_input():
             yield i
+        
+        # Increase input size and initiate drilling
+        if self.input_growth:
+            self.input = self.input + bytes('0', 'ascii') * self.input_growth
+            print('Drilling input: %s' % self.input)
+            for w in self._drill_input():
+                yield w
+        
 
     def _drill_input(self):
         """
@@ -125,7 +150,7 @@ class Driller(object):
 
         simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
 
-        t = angr.exploration_techniques.Tracer(trace=r.trace, crash_addr=r.crash_addr, copy_states=True, follow_unsat=True)
+        t = angr.exploration_techniques.Tracer(trace=r.trace, crash_addr=r.crash_addr, copy_states=True)
         self._core = angr.exploration_techniques.DrillerCore(trace=r.trace, fuzz_bitmap=self.fuzz_bitmap)
 
         simgr.use_technique(t)
@@ -137,6 +162,7 @@ class Driller(object):
         l.debug("Drilling into %r.", self.input)
         l.debug("Input is %r.", self.input)
 
+        #simgr.run(until=lambda simgr_: len(simgr_.active) > 3)
         while simgr.active and simgr.one_active.globals['trace_idx'] < len(r.trace) - 1:
             simgr.step()
 
@@ -152,12 +178,19 @@ class Driller(object):
                 l.debug("Found a diverted state, exploring to some extent.")
                 w = self._writeout(state.history.bbl_addrs[-1], state)
                 if w is not None:
+                    # DISABLED!
+                    if None and self.depth_limit > 1:
+                        depth_lim = self.depth_limit
+                        self.depth_limit -= 1
+                        self.input = w[1]
+                        for new_input in self._drill_input():
+                            yield new_input
+                        self.depth_limit = depth_lim
                     yield w
                 for i in self._symbolic_explorer_stub(state):
                     yield i
 
 ### EXPLORER
-
     def _symbolic_explorer_stub(self, state):
         # Create a new simulation manager and step it forward up to 1024
         # accumulated active states or steps.
@@ -170,34 +203,60 @@ class Driller(object):
             state.options.remove(angr.options.LAZY_SOLVES)
         except KeyError:
             pass
+
+        l.debug(
+            "[%s] started symbolic exploration at %s.", self.identifier, time.ctime()
+        )
+
         simgr = p.factory.simulation_manager(state, hierarchy=False)
+        # Perform iterative deepening upto the depth limit. 
+        for i in range(self.depth_limit):
+            while len(simgr.active) and accumulated < 1024:
+                simgr.step()
+                steps += 1
+                # Dump all inputs.
+                accumulated = steps * (len(simgr.active) + len(simgr.deadended))
+            if not len(simgr.active):
+                break
+            steps = 0
+            accumulated = 0
 
-        l.debug("[%s] started symbolic exploration at %s.", self.identifier, time.ctime())
-
-        while len(simgr.active) and accumulated < 1024:
-            simgr.step()
-            steps += 1
-
-            # Dump all inputs.
-            accumulated = steps * (len(simgr.active) + len(simgr.deadended))
-
-        l.debug("[%s] stopped symbolic exploration at %s.", self.identifier, time.ctime())
-
+        # Perform heuristic-based iterative deepining for DrillerPrime if a heuristic is given.
+        if self.depth_limit > 1 and self.heuristic:
+            simgr_copy = simgr.copy(deep=True)
+            i = self.depth_limit
+            while len(simgr_copy.active) and i > 1:
+                simgr.step()
+                i -= 1
+            simgr_copy.move(
+                from_stash="deadended",
+                to_stash="heuristic",
+                filter_func=lambda s: bytes(self.heuristic, "ascii")
+                                      in s.posix.dumps(1).lower(),
+            )
+            # Move heuristic states and absorb into original sim manager.
+            if len(simgr_copy.heuristic) > 0:
+                simgr_copy.drop(stash="deadended")
+                simgr_copy.drop(stash="active")
+                simgr.absorb(simgr_copy)
+                simgr.stash(from_stash="heuristic", to_stash="active")
+        l.debug(
+            "[%s] stopped symbolic exploration at %s.",
+            self.identifier,
+            time.ctime(),
+        )
         # DO NOT think this is the same as using only the deadended stashes. this merges deadended and active
-        simgr.stash(from_stash='deadended', to_stash='active')
+        simgr.stash(from_stash="deadended", to_stash="active")
         for dumpable in simgr.active:
             try:
                 if dumpable.satisfiable():
                     w = self._writeout(dumpable.history.bbl_addrs[-1], dumpable)
-                    if w is not None:
-                        yield w
-
+                if w is not None:
+                    yield w
             # If the state we're trying to dump wasn't actually satisfiable.
             except IndexError:
                 pass
-
 ### UTILS
-
     @staticmethod
     def _set_concretizations(state):
         if state.project.loader.main_object.os == 'cgc':
