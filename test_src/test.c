@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
   #ifdef __AFL_HAVE_MANUAL_CONTROL
     __AFL_INIT();
   #endif
-  /* Inititate differential fuzzing. DrillerPime to start execution from here and skip initialization code. */
+  /* Inititate differential fuzzing. DrillerPime will start execution from here and skip initialization code. */
   diff_fuzz(temp_path, &lodepng_test_res, &upng_test_res);
   
   if(unlink(temp_path) < 0){
