@@ -16,7 +16,7 @@ from . import config
 l = logging.getLogger("driller.driller")
 logging.getLogger('driller.driller').setLevel('DEBUG')
 logging.getLogger('angr.exploration_techniques.tracer').setLevel('DEBUG')
-logging.getLogger('angr').setLevel(logging.DEBUG)
+#logging.getLogger('angr').setLevel(logging.DEBUG)
 class Driller(object):
     """
     Driller object, symbolically follows an input looking for new state transitions.
@@ -136,8 +136,15 @@ class Driller(object):
         # initialize the tracer
         r = tracer.qemu_runner.QEMURunner(self.binary, self.input, argv=self.argv)
         p = angr.Project(self.binary)
-        #cfg = p.analyses.CFGFast()
-        #diff_fuzz = cfg.functions.function(name='diff_fuzz')
+        # create CFG and obtain starting address for target function
+        cfg = p.analyses.CFGFast(force_complete_scan=False))
+        diff_fuzz = cfg.functions.function(name='diff_fuzz')
+        # initialize callers of target function and obtain address
+        target_callers = set() # currently a set to allow multiple callers in the future.
+        for caller in cfg.get_all_nodes(addr=diff_fuzz.addr):
+            for elm in caller.predecessors:
+                callers.add(elm.addr) # add address of caller
+                
         for addr, proc in self._hooks.items():
             p.hook(addr, proc)
             l.debug("Hooking %#x -> %s...", addr, proc.display_name)
@@ -148,7 +155,6 @@ class Driller(object):
             s = p.factory.entry_state(stdin=angr.SimFileStream, flag_page=r.magic, mode='tracing')
         else:
             s = p.factory.full_init_state(stdin=angr.SimFileStream, mode='tracing')
-            #s = p.factory.call_state(addr=diff_fuzz.addr, stdin=angr.SimFileStream, mode='tracing')
 
         s.preconstrainer.preconstrain_file(self.input, s.posix.stdin, True)
 
@@ -165,8 +171,10 @@ class Driller(object):
 
         l.debug("Drilling into %r.", self.input)
         l.debug("Input is %r.", self.input)
-
-        #simgr.run(until=lambda simgr_: len(simgr_.active) > 3)
+        
+        # perform dry run with tracer until the target function is reached
+        simgr.run(until=lambda lsm: len(lsm.active) > 0 and lsm.active[0].addr == list(target_callers)[0])
+        # start binary analysis
         while simgr.active and simgr.one_active.globals['trace_idx'] < len(r.trace) - 1:
             simgr.step()
 
