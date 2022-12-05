@@ -137,13 +137,13 @@ class Driller(object):
         r = tracer.qemu_runner.QEMURunner(self.binary, self.input, argv=self.argv)
         p = angr.Project(self.binary)
         # create CFG and obtain starting address for target function
-        cfg = p.analyses.CFGFast(force_complete_scan=False))
+        cfg = p.analyses.CFGFast(force_complete_scan=False)
         diff_fuzz = cfg.functions.function(name='diff_fuzz')
         # initialize callers of target function and obtain address
         target_callers = set() # currently a set to allow multiple callers in the future.
         for caller in cfg.get_all_nodes(addr=diff_fuzz.addr):
             for elm in caller.predecessors:
-                callers.add(elm.addr) # add address of caller
+                target_callers.add(elm.addr) # add address of caller
                 
         for addr, proc in self._hooks.items():
             p.hook(addr, proc)
