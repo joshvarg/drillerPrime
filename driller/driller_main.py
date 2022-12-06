@@ -62,10 +62,10 @@ class Driller(object):
         self.file_name = file_name
 
         # Input growth specifier.
-        self.input_growth = input_growth or 0
+        self.input_growth = int(input_growth) or 0
 
         # Set depth limit for input drilling
-        self.depth_limit = depth_limit or 1
+        self.depth_limit = int(depth_limit) or 1
         
         # Set heuristic for symbolic execution
         self.heuristic = heuristic if not heuristic else heuristic.lower()
@@ -121,7 +121,7 @@ class Driller(object):
         
         # Increase input size and initiate drilling
         if self.input_growth:
-            self.input = self.input + bytes('0', 'ascii') * self.input_growth
+            self.input = self.input + bytes('0', 'ascii') * int(self.input_growth)
             print('Drilling input: %s' % self.input)
             for w in self._drill_input():
                 yield w
