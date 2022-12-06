@@ -22,10 +22,24 @@ def save_driller_output(output, dest, identifier):
 
 def main():
     # Ensure proper number arguments are given
-    if len(sys.argv) != 3:
+    if len(sys.argv) < 3:
         print('Usage: %s <binary> <AFL_output_dir>' % os.path.basename(sys.argv[0]))
         sys.exit(1)
-    _, binary, afl_output_dir = sys.argv
+    # Unpacking system arguments and initializing optional arguments
+    input_growth = None
+    depth_limit = None
+    heuristic = None
+    if(len(sys.argv) == 3):
+        _, binary, afl_output_dir = sys.argv
+    elif(len(sys.argv) == 4):
+        _, binary, afl_output_dir, input_growth = sys.argv
+    elif(len(sys.argv) == 5):
+        _, binary, afl_output_dir, input_growth, depth_limit = sys.argv
+    elif(len(sys.argv) == 6):
+        _, binary, afl_output_dir, input_growth, depth_limit, heuristic = sys.argv
+    else:
+        print("Expected 6 arguments but given", len(sys.argv))
+        sys.exit(1)
 
     # Read AFL bitmap and configure output/input directories
     with open(os.path.join(afl_output_dir, 'fuzz_bitmap'), 'rb') as bitmap:
@@ -58,7 +72,7 @@ def main():
 
             print('Drilling input: %s' % afl_input)
             print('Input file: %s' % os.path.basename(os.path.join(afl_queue_dir, input_name)))
-            for _, drilled_output in Driller(binary, afl_input, afl_bitmap, input_growth=4, depth_limit=1).drill_generator():
+            for _, drilled_output in Driller(binary, afl_input, afl_bitmap, input_growth=input_growth, depth_limit=depth_limit, heuristic=heuristic).drill_generator():
                 save_driller_output(drilled_output, driller_prime_queue_dir, output_identifier)
                 output_identifier += 1
 
