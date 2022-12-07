@@ -47,40 +47,40 @@ First, we must install the shellphish docker container, and install docker.
   
  Then, we can enter the container
  
-  docker run -it shellphish/mechaphish bash
+    docker run -it shellphish/mechaphish bash
   
  This should put you into the docker container used to run DrillerPrime, and you should see (angr) prior to the container name.
  Next, we can install AFL
  
-  sudo apt install AFL
-  cd AFL
-  make
+    sudo apt install AFL
+    cd AFL
+    make
   
  and then enable QEMU mode
  
-  cd qemu_mode
-  ./build-qemu-support.sh
-  cd
+    cd qemu_mode
+    ./build-qemu-support.sh
+    cd
   
  Note here that there may be an error with python. In this case, you need to edit the build-qemu-support.sh file to point to the correct Python version in the ./configure command contained in the file, in my case it was /usr/bin/python3, so I added the option --python=/usr/bin/python3.
  After that, QEMU support for AFL should be built. We are now ready to install DrillerPrime
  
-  git clone https://github.com/joshvarg/drillerPrime
-  cd drillerPrime
-  cd test_src
-  cd png
+    git clone https://github.com/joshvarg/drillerPrime
+    cd drillerPrime
+    cd test_src
+    cd png
   
  This is the location of the test binary, you may choose to compile it with or without AFL instrumentation, keep in mind that DrillerPrime will not work with AFL's instrumentation. So, here is the command to compile the test without that:
  
-  gcc -o test test.c upng.c lodepng.c upng_decoder_test.c lodepng_decoder_test.c
-  cd
+    gcc -o test test.c upng.c lodepng.c upng_decoder_test.c lodepng_decoder_test.c
+    cd
   
  This should create the test binary for us to use. Now we want to set up our inputs folder.
  
-  cd drillerPrime
-  mkdir inputs
-  mv test_src/s-min.png inputs
-  cd
+    cd drillerPrime
+    mkdir inputs
+    mv test_src/s-min.png inputs
+    cd
   
  We are now ready to run AFL, and then DrillerPrime after! To run both at the same time, I would recommend the tmux tool, or opening up a second terminal window and entering the docker container on that as well. Here is the command to start AFL:
  
