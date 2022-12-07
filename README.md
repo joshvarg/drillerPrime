@@ -42,8 +42,8 @@ new_inputs = d.drill()
 ### DrillerPrime Tutorial
 First, we must install the shellphish docker container, and install docker.
 
-  sudo apt install docker
-  docker pull shellphish/mechaphish
+    sudo apt install docker
+    docker pull shellphish/mechaphish
   
  Then, we can enter the container
  
