@@ -14,8 +14,9 @@ from . import config
 
 
 l = logging.getLogger("driller.driller")
-
-
+logging.getLogger('driller.driller').setLevel('DEBUG')
+logging.getLogger('angr.exploration_techniques.tracer').setLevel('DEBUG')
+#logging.getLogger('angr').setLevel(logging.DEBUG)
 class Driller(object):
     """
     Driller object, symbolically follows an input looking for new state transitions.
@@ -61,10 +62,10 @@ class Driller(object):
         self.file_name = file_name
 
         # Input growth specifier.
-        self.input_growth = input_growth or 0
+        self.input_growth = int(input_growth) or 0
 
         # Set depth limit for input drilling
-        self.depth_limit = depth_limit or 1
+        self.depth_limit = int(depth_limit) or 1
         
         # Set heuristic for symbolic execution
         self.heuristic = heuristic if not heuristic else heuristic.lower()
@@ -120,7 +121,7 @@ class Driller(object):
         
         # Increase input size and initiate drilling
         if self.input_growth:
-            self.input = self.input + bytes('0', 'ascii') * self.input_growth
+            self.input = self.input + bytes('0', 'ascii') * int(self.input_growth)
             print('Drilling input: %s' % self.input)
             for w in self._drill_input():
                 yield w
@@ -135,6 +136,15 @@ class Driller(object):
         # initialize the tracer
         r = tracer.qemu_runner.QEMURunner(self.binary, self.input, argv=self.argv)
         p = angr.Project(self.binary)
+        # create CFG and obtain starting address for target function
+        cfg = p.analyses.CFGFast(force_complete_scan=False)
+        diff_fuzz = cfg.functions.function(name='diff_fuzz')
+        # initialize callers of target function and obtain address
+        target_callers = set() # currently a set to allow multiple callers in the future.
+        for caller in cfg.get_all_nodes(addr=diff_fuzz.addr):
+            for elm in caller.predecessors:
+                target_callers.add(elm.addr) # add address of caller
+                
         for addr, proc in self._hooks.items():
             p.hook(addr, proc)
             l.debug("Hooking %#x -> %s...", addr, proc.display_name)
@@ -161,8 +171,10 @@ class Driller(object):
 
         l.debug("Drilling into %r.", self.input)
         l.debug("Input is %r.", self.input)
-
-        #simgr.run(until=lambda simgr_: len(simgr_.active) > 3)
+        
+        # perform dry run with tracer until the target function is reached
+        simgr.run(until=lambda lsm: len(lsm.active) > 0 and lsm.active[0].addr == list(target_callers)[0])
+        # start binary analysis
         while simgr.active and simgr.one_active.globals['trace_idx'] < len(r.trace) - 1:
             simgr.step()
 
