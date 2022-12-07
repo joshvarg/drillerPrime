@@ -29,16 +29,16 @@ def main():
     input_growth = None
     depth_limit = None
     heuristic = None
-    if(len(sys.argv) == 3):
-        _, binary, afl_output_dir = sys.argv
-    elif(len(sys.argv) == 4):
-        _, binary, afl_output_dir, input_growth = sys.argv
-    elif(len(sys.argv) == 5):
-        _, binary, afl_output_dir, input_growth, depth_limit = sys.argv
-    elif(len(sys.argv) == 6):
+    if(len(sys.argv) == 6):
         _, binary, afl_output_dir, input_growth, depth_limit, heuristic = sys.argv
+    elif(len(sys.argv)==3):
+        print("Using defaults for input_growth, depth_limit, heuristic")
+        _, binary, afl_output_dir = sys.argv
+        input_growth = 0
+        depth_limit = 1
+        heuristic = None
     else:
-        print("Expected 6 arguments but given", len(sys.argv))
+        print("Expected 3 or 6 arguments but given", len(sys.argv))
         sys.exit(1)
 
     # Read AFL bitmap and configure output/input directories
