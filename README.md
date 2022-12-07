@@ -61,18 +61,26 @@ First, we must install the shellphish docker container, and install docker.
   cd test_src
   cd png
  This is the location of the test binary, you may choose to compile it with or without AFL instrumentation, keep in mind that DrillerPrime will not work with AFL's instrumentation. So, here is the command to compile the test without that:
+ 
   gcc -o test test.c upng.c lodepng.c upng_decoder_test.c lodepng_decoder_test.c
   cd
+  
  This should create the test binary for us to use. Now we want to set up our inputs folder.
+ 
   cd drillerPrime
   mkdir inputs
   mv test_src/s-min.png inputs
   cd
+  
  We are now ready to run AFL, and then DrillerPrime after! To run both at the same time, I would recommend the tmux tool, or opening up a second terminal window and entering the docker container on that as well. Here is the command to start AFL:
- AFL/afl-fuzz -M fuzzer-master -i drillerPrime/inputs -o drillerPrime/outputs -Q drillerPrime/test_src/png/test
+ 
+  AFL/afl-fuzz -M fuzzer-master -i drillerPrime/inputs -o drillerPrime/outputs -Q drillerPrime/test_src/png/test
+  
 Make sure to add the -Q option, because that is what leverages QEMU mode. AFL will throw an error if that flag is not set. Now, we are ready to run the following command in a different terminal window to get DrillerPrime running:
+
  cd drillerPrime
  python3 driller_prime.py test_src/png/test outputs/fuzzer-master
+ 
 This command will allow DrillerPrime to access AFL's input queue, and help it by generating test cases. It is now ready to go, and can be left running until you decide to stop both programs. Keep in mind that this was only one example of using DrillerPrime, using the test harness we created to compare upng and lodepng. Enjoy!
 
 #### Dependencies
